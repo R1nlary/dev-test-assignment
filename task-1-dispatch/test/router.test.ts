@@ -119,4 +119,55 @@ test('нет активных филиалов магазина — unassigned',
   assert.deepEqual(res, { orderId: 'o-1', branchId: null, rule: 'unassigned' });
 });
 
-test.todo('лимит: заполненный филиал пропускается');
+const near = branch({ id: 'b-near', lat: 43.26, lon: 76.93, dailyLimit: 2 });
+const mid = branch({ id: 'b-mid', lat: 43.3, lon: 76.95, dailyLimit: 2 });
+const far = branch({ id: 'b-far', lat: 43.4, lon: 77.1, dailyLimit: 2 });
+const full = (...ids: string[]) => (id: string) => (ids.includes(id) ? 2 : 0);
+
+test('лимит: заполненный филиал пропускается', () => {
+  const res = assignBranch(order({}), [near, mid, far], full('b-near'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-mid', rule: 'geo' });
+});
+
+test('лимит: филиал с запасом остаётся выбранным', () => {
+  const res = assignBranch(order({}), [near, mid], (id) => (id === 'b-near' ? 1 : 0));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-near', rule: 'geo' });
+});
+
+test('лимит: заполнены все, кроме дальнего', () => {
+  const res = assignBranch(order({}), [near, mid, far], full('b-near', 'b-mid'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-far', rule: 'geo' });
+});
+
+test('лимит: заполнены все филиалы — unassigned', () => {
+  const res = assignBranch(order({}), [near, mid], full('b-near', 'b-mid'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: null, rule: 'unassigned' });
+});
+
+test('лимит: pickup_point заполнен — заказ уходит с правилом geo', () => {
+  const withPoint = { ...far, pickupPointIds: ['pp-1'] };
+  const res = assignBranch(order({ pickupPointId: 'pp-1' }), [near, withPoint], full('b-far'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-near', rule: 'geo' });
+});
+
+test('лимит: city заполнен — запасной филиал может быть в другом городе', () => {
+  const other = { ...mid, city: 'Конаев' };
+  const res = assignBranch(order({}), [near, other], full('b-near'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-mid', rule: 'geo' });
+});
+
+test('лимит: single заполнен — unassigned', () => {
+  const res = assignBranch(order({}), [near], full('b-near'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: null, rule: 'unassigned' });
+});
+
+test('лимит: без координат заменить заполненный филиал нечем', () => {
+  const other = { ...mid, city: 'Конаев' };
+  const res = assignBranch(order({ lat: null, lon: null }), [near, other], full('b-near'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: null, rule: 'unassigned' });
+});
+
+test('лимит: manual не проверяет лимит', () => {
+  const res = assignBranch(order({ manualBranchId: 'b-near' }), [near, mid], full('b-near'));
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-near', rule: 'manual' });
+});
