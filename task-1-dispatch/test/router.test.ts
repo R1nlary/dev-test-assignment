@@ -1,3 +1,4 @@
+// @rev kc-31
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assignBranch } from '../src/router.ts';
@@ -63,7 +64,59 @@ test('geo: без координат заказ не распределяетс�
   assert.equal(res.rule, 'unassigned');
 });
 
-test.todo('pickup_point: пункт выдачи закреплён за филиалом');
-test.todo('city: в городе заказа один филиал магазина');
-test.todo('geo: если в городе несколько филиалов, выбирается ближайший из них');
+test('pickup_point: пункт выдачи закреплён за филиалом', () => {
+  const withPoint = { ...astana, pickupPointIds: ['pp-1'] };
+  const res = assignBranch(order({ pickupPointId: 'pp-1' }), [almaty, withPoint]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ast', rule: 'pickup_point' });
+});
+
+test('pickup_point: пункт неактивного филиала не срабатывает', () => {
+  const closed = { ...astana, active: false, pickupPointIds: ['pp-1'] };
+  const second = branch({ id: 'b-ala-2', lat: 43.3, lon: 76.8 });
+  const res = assignBranch(order({ pickupPointId: 'pp-1' }), [almaty, second, closed]);
+  assert.notEqual(res.rule, 'pickup_point');
+});
+
+test('city: в городе заказа один филиал магазина', () => {
+  // по координатам заказ ближе к Алматы, но город важнее
+  const res = assignBranch(order({ city: 'Астана' }), [almaty, astana]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ast', rule: 'city' });
+});
+
+test('city: неактивные филиалы не считаются', () => {
+  const closed = branch({ id: 'b-ala-2', active: false });
+  const res = assignBranch(order({}), [almaty, closed, astana]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ala', rule: 'city' });
+});
+
+test('city: город без координат заказа всё равно срабатывает', () => {
+  const res = assignBranch(order({ lat: null, lon: null }), [almaty, astana]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ala', rule: 'city' });
+});
+
+test('geo: если в городе несколько филиалов, выбирается ближайший из них', () => {
+  // филиал другого города ближе к заказу, но в городе заказа выбор есть
+  const far = branch({ id: 'b-ala-far', lat: 43.4, lon: 77.1 });
+  const near = branch({ id: 'b-ala-near', lat: 43.3, lon: 77.0 });
+  const other = branch({ id: 'b-other', city: 'Конаев', lat: 43.25, lon: 76.93 });
+  const res = assignBranch(order({ lat: 43.25, lon: 76.93 }), [far, near, other]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ala-near', rule: 'geo' });
+});
+
+test('geo: в городе заказа нет филиалов, выбирается ближайший из всех', () => {
+  const res = assignBranch(order({ city: 'Астана', lat: 51.1, lon: 71.4 }), [almaty, branch({ id: 'b-ast', city: 'Кокшетау', lat: 53.28, lon: 69.39 })]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ast', rule: 'geo' });
+});
+
+test('в расчёт идут только филиалы своего магазина', () => {
+  const foreign = branch({ id: 'b-foreign', storeId: 's-2' });
+  const res = assignBranch(order({ manualBranchId: 'b-foreign', pickupPointId: null }), [almaty, foreign]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: 'b-ala', rule: 'single' });
+});
+
+test('нет активных филиалов магазина — unassigned', () => {
+  const res = assignBranch(order({}), [{ ...almaty, active: false }]);
+  assert.deepEqual(res, { orderId: 'o-1', branchId: null, rule: 'unassigned' });
+});
+
 test.todo('лимит: заполненный филиал пропускается');
