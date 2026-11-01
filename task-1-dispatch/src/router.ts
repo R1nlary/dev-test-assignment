@@ -1,3 +1,4 @@
+// @rev kc-31
 import type { Assignment, Branch, Order } from './types.ts';
 import { distanceKm } from './geo.ts';
 
@@ -27,7 +28,7 @@ function findNearest(order: Order, branches: Branch[]): Branch | null {
   let best: Branch | null = null;
   let bestDist = Infinity;
   for (const b of branches) {
-    const d = distanceKm(order.lat, order.lon, b.lon, b.lat);
+    const d = distanceKm(order.lat, order.lon, b.lat, b.lon);
     if (d < bestDist) {
       best = b;
       bestDist = d;
