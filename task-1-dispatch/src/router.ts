@@ -1,3 +1,4 @@
+// @rev kc-31
 import type { Assignment, Branch, Order } from './types.ts';
 import { distanceKm } from './geo.ts';
 
@@ -36,7 +37,6 @@ export function assignBranch(
     rule,
   });
 
-  // Manual assignment is allowed even when the limit is reached.
   if (order.manualBranchId) {
     const manual = own.find((b) => b.id === order.manualBranchId);
     if (manual) return result(manual, 'manual');
@@ -72,7 +72,6 @@ export function assignBranch(
   const hasSpace = (b: Branch) => branchLoad(b.id, date, assignments, orders) < b.dailyLimit;
   if (hasSpace(chosen)) return result(chosen, rule);
 
-  // If the selected branch is full, use the nearest available branch.
   const fallback = findNearest(order, own.filter(hasSpace));
   return fallback ? result(fallback, 'geo') : result(null, 'unassigned');
 }

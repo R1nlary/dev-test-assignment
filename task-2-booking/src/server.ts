@@ -1,3 +1,4 @@
+// @rev kc-31
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { now } from './clock.ts';
@@ -40,7 +41,6 @@ function parseStart(input: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-// Only one booking operation per master can check a slot at a time.
 async function withMasterLock<T>(masterId: string, action: () => Promise<T>): Promise<T> {
   const previous = locks.get(masterId) ?? Promise.resolve();
   let release!: () => void;
